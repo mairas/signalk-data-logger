@@ -1,0 +1,29 @@
+{
+  "name": "signalk-data-logger",
+  "version": "0.0.1",
+  "description": "Signal K plugin to selectively log Signal K data to flat files.",
+  "main": "index.js",
+  "scripts": {
+    "changelog": "github-changes -o mairas -r signalk-data-logger -a --only-pulls --use-commit-body --data=pulls  --tag-name=v$npm_package_version",
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mairas/signalk-data-logger.git"
+  },
+  "keywords": [
+    "signalk-node-server-plugin"
+  ],
+  "author": "Matti Airas",
+  "license": "ISC",
+  "dependencies": {
+    "baconjs": "^0.7.88",
+    "debug": "^3.1.0",
+    "github-changes": "^1.1.2",
+    "lodash": "^4.17.4"
+  },
+  "bugs": {
+    "url": "https://github.com/mairas/signalk-data-logger/issues"
+  },
+  "homepage": "https://github.com/mairas/signalk-data-logger#readme"
+}
