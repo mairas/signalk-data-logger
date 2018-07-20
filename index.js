@@ -4,26 +4,30 @@ const util = require("util");
 const _ = require('lodash')
 const path = require('path')
 const fs = require('fs')
+const { spawn } = require('child_process')
 
 /*
 
 Signal K server plugin to log Signal K deltas to flat files.
 
 Features:
-- Basic logging to a hard-coded location
-
-TODO:
+- Basic logging
 - Configurable log directory
 - Splitting per hour
+
+TODO:
 - Exclude filtering
 - Include filtering
+- Throttling
 
 */
 
 module.exports = function(app) {
   var plugin = {};
   var unsubscribes = [];
-  var logdir = ""
+  var logDir = ""
+  var logFileName = "data_log.json"
+  var logRotationInterval = 600
 
   plugin.id = "sk-data-logger"
   plugin.name = "Log All Signal K Data"
@@ -38,13 +42,31 @@ module.exports = function(app) {
         type: 'string',
         title: 'Data log file directory',
         default: ''
+      },
+      interval: {
+        type: 'number',
+        title: 'Log rotation interval (in seconds). Value of zero disables log rotation.',
+        default: 600
       }
     }
   }
 
   plugin.start = function (options) {
     if (options["logdir"] !== "" && fs.existsSync(options["logdir"])) {
-      logdir = options["logdir"]
+      logDir = options["logdir"]
+      logRotationInterval = options["interval"]
+
+      // create a new logfile
+      rotateLogFile(new Date())
+
+      if (logRotationInterval > 0) {
+        setInterval(() => {
+            rotateLogFile(new Date(), true)
+          },
+          logRotationInterval * 1000
+        )
+      }
+
       app.signalk.on('delta', (delta) => {
         try {
           writeDelta(delta)
@@ -52,13 +74,16 @@ module.exports = function(app) {
           console.log(err)
         }
       })
+    } else {
+      console.log("Log directory isn't set or doesn't exist, data logging disabled")
     }
   }
 
   plugin.stop = function () {
-    // supposedly no need to unsubscribe a delta handler?
+    // compress the log file
+    rotateLogFile(new Date(), true)
 
-    // TODO: once we're splitting to files, close and gzip the current file
+    // supposedly no need to unsubscribe a delta handler?
 
     // plugin.unsubscribes.forEach(f => f())
     // unsubscribes = []
@@ -68,10 +93,27 @@ module.exports = function(app) {
 
   function writeDelta(delta) {
     fs.appendFile(
-      logdir.concat('/data_log.json'),
+      path.join(logDir, logFileName),
       JSON.stringify(delta).concat("\n"), (err) => {
         if (err) throw err;
       }
     )
+  }
+
+  function rotateLogFile(time, compressPrevious = false) {
+    // update the log filename
+    var oldLogFileName = logFileName
+    logFileName = "sk-delta-log.".concat(time.toISOString()).concat('.log')
+
+    // gzip the old logfile
+    if (compressPrevious) {
+      var oldLogPath = path.join(logDir, oldLogFileName)
+      const gzip = spawn('gzip', [oldLogPath])
+      gzip.on('close', (code) => {
+        if (code !== 0) {
+          console.log(`Compressing file ${oldLogPath} failed with exit code ${code}`)
+        }
+      })
+    }
   }
 }
