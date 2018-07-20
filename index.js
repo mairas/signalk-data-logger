@@ -23,27 +23,36 @@ TODO:
 module.exports = function(app) {
   var plugin = {};
   var unsubscribes = [];
+  var logdir = ""
 
   plugin.id = "sk-data-logger"
-  plugin.name = "Log Signal K data into flat files"
-  plugin.description = "Signal K plugin to selectively log Signal K data to flat files"
+  plugin.name = "Log All Signal K Data"
+  plugin.description = "Log Signal K data to compressed flat files."
 
   plugin.schema = {
     type: "object",
     title: "Data logging to flat files",
-    description:
-    "Plugin to selectively log Signal K data as delta objects into flat files",
-    properties: {}
+    description: "Log Signal K data as delta objects into flat files.",
+    properties: {
+      logdir: {
+        type: 'string',
+        title: 'Data log file directory',
+        default: ''
+      }
+    }
   }
 
   plugin.start = function (options) {
-    app.signalk.on('delta', (delta) => {
-      try {
-        writeDelta(delta)
-      } catch ( err ) {
-        console.log(err)
-      }
-    })
+    if (options["logdir"] !== "" && fs.existsSync(options["logdir"])) {
+      logdir = options["logdir"]
+      app.signalk.on('delta', (delta) => {
+        try {
+          writeDelta(delta)
+        } catch ( err ) {
+          console.log(err)
+        }
+      })
+    }
   }
 
   plugin.stop = function () {
@@ -59,7 +68,7 @@ module.exports = function(app) {
 
   function writeDelta(delta) {
     fs.appendFile(
-      '/home/pi/data_log/data_log.json',
+      logdir.concat('/data_log.json'),
       JSON.stringify(delta).concat("\n"), (err) => {
         if (err) throw err;
       }
