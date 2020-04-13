@@ -17,10 +17,10 @@
   "author": "Matti Airas",
   "license": "ISC",
   "dependencies": {
-    "baconjs": "^0.7.88",
-    "debug": "^3.1.0",
-    "github-changes": "^1.1.2",
-    "lodash": "^4.17.4"
+    "baconjs": "3.0.12",
+    "debug": "4.1.1",
+    "github-changes": "1.1.2",
+    "lodash": "4.17.15"
   },
   "bugs": {
     "url": "https://github.com/mairas/signalk-data-logger/issues"
