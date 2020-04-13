@@ -41,7 +41,7 @@ module.exports = function(app) {
       logdir: {
         type: 'string',
         title: 'Data log file directory',
-        default: ''
+        default: app.config.configPath
       },
       interval: {
         type: 'number',
