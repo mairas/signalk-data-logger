@@ -1,6 +1,6 @@
 {
   "name": "signalk-data-logger",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Signal K plugin to selectively log Signal K data to flat files.",
   "main": "index.js",
   "scripts": {
