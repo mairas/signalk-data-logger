@@ -30,8 +30,8 @@ module.exports = function(app) {
   var logRotationInterval = 600
 
   plugin.id = "sk-data-logger"
-  plugin.name = "Log All Signal K Data"
-  plugin.description = "Log Signal K data to compressed flat files."
+  plugin.name = "Signal K delta logger"
+  plugin.description = "Log Signal K delta objects to compressed flat files."
 
   plugin.schema = {
     type: "object",
@@ -41,7 +41,7 @@ module.exports = function(app) {
       logdir: {
         type: 'string',
         title: 'Data log file directory',
-        default: ''
+        default: '/home/pi/sk-delta-logs'
       },
       interval: {
         type: 'number',
@@ -52,31 +52,51 @@ module.exports = function(app) {
   }
 
   plugin.start = function (options) {
-    if (options["logdir"] !== "" && fs.existsSync(options["logdir"])) {
-      logDir = options["logdir"]
-      logRotationInterval = options["interval"]
-
-      // create a new logfile
-      rotateLogFile(new Date())
-
-      if (logRotationInterval > 0) {
-        setInterval(() => {
-            rotateLogFile(new Date(), true)
-          },
-          logRotationInterval * 1000
-        )
-      }
-
-      app.signalk.on('delta', (delta) => {
-        try {
-          writeDelta(delta)
-        } catch ( err ) {
-          console.log(err)
-        }
-      })
-    } else {
-      console.log("Log directory isn't set or doesn't exist, data logging disabled")
+    if (typeof options.logdir === 'undefined') {
+      app.setProviderStatus('Log directory not defined, plugin disabled')
+      return
     }
+    logDir = options.logdir
+    logRotationInterval = options.interval
+
+    if (!fs.existsSync(logDir)) {
+      // attempt creating the log directory
+      try {
+        fs.mkdirSync(logDir)
+      } catch (error) {
+        app.setProviderStatus(`Unable to create log directory ${logDir}, plugin disabled`)
+        return
+      }
+    }
+
+    // compress the old leftover logfile, if any
+    const logMetaFileName = path.join(logDir, '.current_log_file')
+    if (fs.existsSync(logMetaFileName)) {
+      app.debug("meta file exists")
+      const oldLogFile = fs.readFileSync(logMetaFileName).toString()
+      if (fs.existsSync(path.join(logDir, oldLogFile))) {
+        compressLogFile(logDir, oldLogFile)
+      }
+    }
+
+    // create a new logfile
+    rotateLogFile(new Date())
+
+    if (logRotationInterval > 0) {
+      setInterval(() => {
+          rotateLogFile(new Date(), true)
+        },
+        logRotationInterval * 1000
+      )
+    }
+
+    app.signalk.on('delta', (delta) => {
+      try {
+        writeDelta(delta)
+      } catch ( err ) {
+        console.log(err)
+      }
+    })
   }
 
   plugin.stop = function () {
@@ -100,20 +120,27 @@ module.exports = function(app) {
     )
   }
 
+  function compressLogFile(logDir, logFileName) {
+    let logPath = path.join(logDir, logFileName)
+    const gzip = spawn('gzip', [logPath])
+    gzip.on('close', (code) => {
+      if (code !== 0) {
+        console.log(`Compressing file ${logPath} failed with exit code ${code}`)
+      }
+    })
+  }
+
   function rotateLogFile(time, compressPrevious = false) {
     // update the log filename
-    var oldLogFileName = logFileName
+    const oldLogFileName = logFileName
     logFileName = "sk-delta-log.".concat(time.toISOString()).concat('.log')
 
     // gzip the old logfile
     if (compressPrevious) {
-      var oldLogPath = path.join(logDir, oldLogFileName)
-      const gzip = spawn('gzip', [oldLogPath])
-      gzip.on('close', (code) => {
-        if (code !== 0) {
-          console.log(`Compressing file ${oldLogPath} failed with exit code ${code}`)
-        }
-      })
+      compressLogFile(logDir, oldLogFileName)
     }
+
+    // keep track of the current log file
+    fs.writeFileSync(path.join(logDir, '.current_log_file'), logFileName)
   }
 }
