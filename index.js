@@ -133,7 +133,7 @@ module.exports = function(app) {
   function rotateLogFile(time, compressPrevious = false) {
     // update the log filename
     const oldLogFileName = logFileName
-    logFileName = "sk-delta-log.".concat(time.toISOString()).concat('.log')
+    logFileName = "sk-delta-log.".concat(time.toISOString().replace(/:/g,"-")).concat('.log')
 
     // gzip the old logfile
     if (compressPrevious) {
