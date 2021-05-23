@@ -161,14 +161,14 @@ module.exports = function(app) {
 
   function writeDelta(delta) {
     try {
-        fs.appendFile(
-            path.join(logDir, logFileName),
-            JSON.stringify(delta).concat("\n"), (err) => {
-              if (err) throw err;
-            }
-          )
-    } catch ( err ) {
-        console.log(err)
+      fs.appendFile(
+        path.join(logDir, logFileName),
+        JSON.stringify(delta).concat("\n"), (err) => {
+          if (err) throw err;
+        }
+      )
+    } catch (err) {
+      console.log(err)
     }
   }
 
