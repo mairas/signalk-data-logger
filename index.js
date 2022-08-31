@@ -14,16 +14,16 @@ Features:
 - Basic logging
 - Configurable log directory
 - Splitting per hour
+- Include filtering by subscription paths
+- Throttling by subscription period
 
 TODO:
 - Exclude filtering
-- Include filtering
-- Throttling
-
 */
 
 module.exports = function(app) {
   var plugin = {};
+  var subscribes = [];
   var unsubscribes = [];
   var logDir = ""
   var logFileName = "data_log.json"
@@ -46,7 +46,32 @@ module.exports = function(app) {
       interval: {
         type: 'number',
         title: 'Log rotation interval (in seconds). Value of zero disables log rotation.',
-        default: 600
+        default: 600 // should this default be hourly (3600) rather than every 10 min?
+      },
+      context: {
+        type: 'string',
+        title: 'Subscription context',
+        default: 'vessels.self'
+      },
+      subscribes: {
+        type: 'array',
+        title: 'Subscribes',
+        items: {
+          type: 'object',
+          properties:
+          {
+            path: {
+              type: 'string',
+              title: 'Path. Wildcards are supported.',
+              default: '*'
+            },
+            period: {
+              type: 'number',
+              title: 'Period (in milliseconds).',
+              default: 1000
+            }
+          }
+        }
       }
     }
   }
@@ -58,6 +83,9 @@ module.exports = function(app) {
     }
     logDir = options.logdir
     logRotationInterval = options.interval
+    context = options.context
+    subscribes = options.subscribes
+    unsubscribes = [];
 
     if (!fs.existsSync(logDir)) {
       // attempt creating the log directory
@@ -90,34 +118,58 @@ module.exports = function(app) {
       )
     }
 
-    app.signalk.on('delta', (delta) => {
-      try {
-        writeDelta(delta)
-      } catch ( err ) {
-        console.log(err)
-      }
-    })
+    if (typeof subscribes === 'undefined' || subscribes.length == 0) {
+      // if no subscribes are configured, subscribe to everything for backwards compatibility
+      app.debug("no subscribes are configured - log everything")
+      app.signalk.on('delta', (delta) => {
+          writeDelta(delta)
+      })
+    }
+    else {
+      app.debug("subscribes are configured")
+      // create the subscription based on the options
+      subscription = {
+        context: context,
+        subscribe: subscribes
+      };
+      
+      app.debug("subscribing to " + subscribes.length + " path(s)")
+      app.subscriptionmanager.subscribe(
+        subscription,
+        unsubscribes,
+        subscriptionError => {
+          app.error('Error:' + subscriptionError);
+        },
+        delta => {
+          delta.updates.forEach(d => {
+            writeDelta(d)
+          });
+        }
+      );
+    }
   }
 
   plugin.stop = function () {
     // compress the log file
     rotateLogFile(new Date(), true)
 
-    // supposedly no need to unsubscribe a delta handler?
-
-    // plugin.unsubscribes.forEach(f => f())
-    // unsubscribes = []
+    // call unsubscribes - failing to do so will produce duplicate subscriptions on plugin config submissions until restart
+    app.debug("unsubscribing from all paths")
+    unsubscribes.forEach(f => f());
   }
-
   return plugin
 
   function writeDelta(delta) {
-    fs.appendFile(
-      path.join(logDir, logFileName),
-      JSON.stringify(delta).concat("\n"), (err) => {
-        if (err) throw err;
-      }
-    )
+    try {
+      fs.appendFile(
+        path.join(logDir, logFileName),
+        JSON.stringify(delta).concat("\n"), (err) => {
+          if (err) throw err;
+        }
+      )
+    } catch (err) {
+      console.log(err)
+    }
   }
 
   function compressLogFile(logDir, logFileName) {
